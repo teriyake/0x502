@@ -1,0 +1,24 @@
+{
+  "slug": "glsl-rack",
+  "name": "glsl-rack",
+  "version": "2.0.0",
+  "license": "proprietary",
+  "brand": "glsl-rack",
+  "author": "",
+  "authorEmail": "",
+  "authorUrl": "",
+  "pluginUrl": "",
+  "manualUrl": "",
+  "sourceUrl": "",
+  "donateUrl": "",
+  "changelogUrl": "",
+  "modules": [
+    {
+      "slug": "draw",
+      "name": "draw",
+      "description": "glsl shader visualization",
+      "manualUrl": "",
+      "tags": ["Visual"]
+    }
+  ]
+}
