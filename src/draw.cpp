@@ -44,75 +44,60 @@ GLuint compileShader(const std::string& source, GLenum type) {
 
 struct Draw : Module {
 	enum ParamId {
-		PARAM_1X2_PARAM,
-		PARAM_GAIN_1_PARAM,
-		PARAM_GAIN_2_PARAM,
-		PARAM_TRIG_PARAM,
-		PARAM_TIME_PARAM,
-		PARAM_OFFSET_1_PARAM,
-		PARAM_OFFSET_2_PARAM,
-		PARAM_THRESHOLD_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
 		IN_1_INPUT,
-		IN_2_INPUT,
-		OUT_TRIG_INPUT,
 		INPUTS_LEN
 	};
 	enum OutputId {
-		OUT_1_OUTPUT,
-		OUT_2_OUTPUT,
 		OUTPUTS_LEN
 	};
 	enum LightId {
 		LIGHTS_LEN
 	};
 
+	float audioBuffer[512] = {0.f};
+	float smoothingFactor = 0.3f;
+
 	Draw() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
-		configParam(PARAM_1X2_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(PARAM_GAIN_1_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(PARAM_GAIN_2_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(PARAM_TRIG_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(PARAM_TIME_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(PARAM_OFFSET_1_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(PARAM_OFFSET_2_PARAM, 0.f, 1.f, 0.f, "");
-		configParam(PARAM_THRESHOLD_PARAM, 0.f, 1.f, 0.f, "");
-		configInput(IN_1_INPUT, "");
-		configInput(IN_2_INPUT, "");
-		configInput(OUT_TRIG_INPUT, "");
-		configOutput(OUT_1_OUTPUT, "");
-		configOutput(OUT_2_OUTPUT, "");
+		configInput(IN_1_INPUT, "Audio");
 	}
-
-	float audioBuffer[512] = {0.f};
 
 	void process(const ProcessArgs& args) override {
+		float in = 0.f;
 		if (inputs[IN_1_INPUT].isConnected()) {
-			float in = inputs[IN_1_INPUT].getVoltage() / 5.f;
-
-			for (int i = 511; i > 0; i--) {
-				audioBuffer[i] = audioBuffer[i-1];
-			}
-			audioBuffer[0] = in;
+			in = inputs[IN_1_INPUT].getVoltage() / 5.f; // normalize to roughly [-1, 1]
 		}
+
+		// shift buffer and apply smoothing
+		for (int i = 511; i > 0; i--) {
+			audioBuffer[i] = audioBuffer[i-1] * (1.f - smoothingFactor) + audioBuffer[i] * smoothingFactor;
+		}
+		audioBuffer[0] = in;
 	}
 };
-
 
 struct GLCanvasWidget : rack::widget::OpenGlWidget {
 	GLuint shaderProgram = 0;
 	GLuint VBO = 0;
 	GLuint EBO = 0;
+	float startTime = 0.f;
 	
 	GLint posAttrib = -1;
 	GLint texCoordAttrib = -1;
+	GLint timeUniform = -1;
+	GLint resolutionUniform = -1;
+	GLint audioDataUniform = -1;
+	GLint projUniform = -1;
+	GLint modelUniform = -1;
 	
 	Draw* module = nullptr;
 	
 	GLCanvasWidget() {
 		box.size = math::Vec(195, 160);
+		startTime = rack::system::getTime();
 	}
 	
 	void setModule(Draw* mod) {
@@ -163,17 +148,24 @@ struct GLCanvasWidget : rack::widget::OpenGlWidget {
 		glUseProgram(shaderProgram);
 		posAttrib = glGetAttribLocation(shaderProgram, "vs_Pos");
 		texCoordAttrib = glGetAttribLocation(shaderProgram, "vs_TexCoord");
-		INFO("Attribute locations - vs_Pos: %d, vs_TexCoord: %d", posAttrib, texCoordAttrib);
+		timeUniform = glGetUniformLocation(shaderProgram, "u_Time");
+		resolutionUniform = glGetUniformLocation(shaderProgram, "u_Resolution");
+		audioDataUniform = glGetUniformLocation(shaderProgram, "u_AudioData");
+		projUniform = glGetUniformLocation(shaderProgram, "u_Proj");
+		modelUniform = glGetUniformLocation(shaderProgram, "u_Model");
+		
+		INFO("Shader locations - Pos: %d, TexCoord: %d, Time: %d, Res: %d, Audio: %d, Proj: %d, Model: %d",
+			 posAttrib, texCoordAttrib, timeUniform, resolutionUniform, audioDataUniform, projUniform, modelUniform);
 		
 		checkGLError("createShaderProgram");
 	}
 	
 	void setupGeometry() {
 		float vertices[] = {
-			-0.8f,  0.8f, 0.0f, 0.0f, 1.0f,
-            0.8f,  0.8f, 0.0f, 1.0f, 1.0f,
-			-0.8f, -0.8f, 0.0f, 0.0f, 0.0f,
-			 0.8f, -0.8f, 0.0f, 1.0f, 0.0f
+			-1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+             1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+			-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+			 1.0f, -1.0f, 0.0f, 1.0f, 0.0f
 		};
 		unsigned int indices[] = {
 			0, 1, 2,
@@ -208,8 +200,8 @@ struct GLCanvasWidget : rack::widget::OpenGlWidget {
 		
 		math::Vec fbSize = getFramebufferSize();
 		glViewport(0.0, 0.0, fbSize.x, fbSize.y);
-		glClearColor(0.2, 0.2, 0.2, 1.0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		glClearColor(0.0, 0.0, 0.0, 1.0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 		
 		glUseProgram(shaderProgram);
 		checkGLError("glUseProgram");
@@ -226,6 +218,34 @@ struct GLCanvasWidget : rack::widget::OpenGlWidget {
 			glEnableVertexAttribArray(texCoordAttrib);
 			glVertexAttribPointer(texCoordAttrib, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 		}
+		
+		float currentTime = rack::system::getTime() - startTime;
+		if (timeUniform >= 0) glUniform1f(timeUniform, currentTime);
+		if (resolutionUniform >= 0) glUniform2f(resolutionUniform, fbSize.x, fbSize.y);
+		
+		if (module && audioDataUniform >= 0) {
+			glUniform1fv(audioDataUniform, 512, module->audioBuffer);
+		}
+		
+		float aspect = fbSize.x / fbSize.y;
+		float projection[16] = {
+			1.0f/aspect, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 1.0f
+		};
+		
+		float model[16] = {
+			1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 1.0f
+		};
+		
+		if (projUniform >= 0) glUniformMatrix4fv(projUniform, 1, GL_FALSE, projection);
+		if (modelUniform >= 0) glUniformMatrix4fv(modelUniform, 1, GL_FALSE, model);
+		
+		checkGLError("uniforms");
 		
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 		
@@ -251,21 +271,7 @@ struct DrawWidget : ModuleWidget {
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(8.643, 80.603)), module, Draw::PARAM_1X2_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(24.897, 80.551)), module, Draw::PARAM_GAIN_1_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(41.147, 80.551)), module, Draw::PARAM_GAIN_2_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(57.397, 80.521)), module, Draw::PARAM_TRIG_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(8.643, 96.819)), module, Draw::PARAM_TIME_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(24.897, 96.789)), module, Draw::PARAM_OFFSET_1_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(41.147, 96.815)), module, Draw::PARAM_OFFSET_2_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(57.397, 96.815)), module, Draw::PARAM_THRESHOLD_PARAM));
-
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(8.643, 113.115)), module, Draw::IN_1_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(33.023, 113.115)), module, Draw::IN_2_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(57.397, 113.115)), module, Draw::OUT_TRIG_INPUT));
-
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(20.833, 113.115)), module, Draw::OUT_1_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(45.212, 113.115)), module, Draw::OUT_2_OUTPUT));
 
 		GLCanvasWidget* canvas = createWidget<GLCanvasWidget>(mm2px(Vec(0.0, 13.039)));
 		canvas->setModule(module);
