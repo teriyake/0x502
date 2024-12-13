@@ -7,8 +7,19 @@
 #include <fstream>
 #include <sstream>
 
+void checkGLError(const char* location) {
+    GLenum err;
+    while ((err = glGetError()) != GL_NO_ERROR) {
+        WARN("OpenGL error at %s: 0x%x", location, err);
+    }
+}
+
 std::string readShaderFile(const std::string& filePath) {
     std::ifstream file(filePath);
+    if (!file.is_open()) {
+        WARN("Failed to open shader file: %s", filePath.c_str());
+        return "";
+    }
     std::stringstream buffer;
     buffer << file.rdbuf();
     return buffer.str();
@@ -20,14 +31,14 @@ GLuint compileShader(const std::string& source, GLenum type) {
     glShaderSource(shader, 1, &src, nullptr);
     glCompileShader(shader);
     
-    GLint ok;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &ok);
-    if (!ok) {
+    GLint success;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
         GLchar infoLog[512];
         glGetShaderInfoLog(shader, 512, nullptr, infoLog);
         WARN("Shader compilation failed: %s", infoLog);
+        return 0;
     }
-    INFO("Shader compiled.");
     return shader;
 }
 
@@ -76,7 +87,7 @@ struct Draw : Module {
 	}
 
 	float audioBuffer[512] = {0.f};
-	
+
 	void process(const ProcessArgs& args) override {
 		if (inputs[IN_1_INPUT].isConnected()) {
 			float in = inputs[IN_1_INPUT].getVoltage() / 5.f;
@@ -89,80 +100,98 @@ struct Draw : Module {
 	}
 };
 
+
 struct GLCanvasWidget : rack::widget::OpenGlWidget {
 	GLuint shaderProgram = 0;
-	GLuint VAO = 0;
 	GLuint VBO = 0;
 	GLuint EBO = 0;
-	float startTime = 0.f;
 	
-	Draw* module;
+	GLint posAttrib = -1;
+	GLint texCoordAttrib = -1;
 	
-    GLCanvasWidget() {
-        startTime = rack::system::getTime();
-    }
+	Draw* module = nullptr;
+	
+	GLCanvasWidget() {
+		box.size = math::Vec(195, 160);
+	}
+	
+	void setModule(Draw* mod) {
+		module = mod;
+	}
 	
 	void createShaderProgram() {
+		INFO("OpenGL Version: %s", glGetString(GL_VERSION));
+		
 		std::string vertSource = readShaderFile(asset::plugin(pluginInstance, "res/shaders/basic.vert"));
 		std::string fragSource = readShaderFile(asset::plugin(pluginInstance, "res/shaders/basic.frag"));
 		
+		if (vertSource.empty() || fragSource.empty()) {
+			WARN("Failed to load shader sources");
+			return;
+		}
+		
 		GLuint vertShader = compileShader(vertSource, GL_VERTEX_SHADER);
 		GLuint fragShader = compileShader(fragSource, GL_FRAGMENT_SHADER);
+		
+		if (!vertShader) {
+			WARN("Failed to compile vertex shader!");
+			return;
+		}
+
+		if (!fragShader) {
+			WARN("Failed to compile fragment shader!");
+			return;
+		}
 		
 		shaderProgram = glCreateProgram();
 		glAttachShader(shaderProgram, vertShader);
 		glAttachShader(shaderProgram, fragShader);
 		glLinkProgram(shaderProgram);
 		
-		GLint success;
-		glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-		if (!success) {
+		GLint ok;
+		glGetProgramiv(shaderProgram, GL_LINK_STATUS, &ok);
+		if (!ok) {
 			GLchar infoLog[512];
 			glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
 			WARN("Shader program linking failed: %s", infoLog);
-        } else {
-            INFO("Shader program linked.");
-        }
+			return;
+		}
 		
 		glDeleteShader(vertShader);
 		glDeleteShader(fragShader);
+		
+		glUseProgram(shaderProgram);
+		posAttrib = glGetAttribLocation(shaderProgram, "vs_Pos");
+		texCoordAttrib = glGetAttribLocation(shaderProgram, "vs_TexCoord");
+		INFO("Attribute locations - vs_Pos: %d, vs_TexCoord: %d", posAttrib, texCoordAttrib);
+		
+		checkGLError("createShaderProgram");
 	}
 	
 	void setupGeometry() {
 		float vertices[] = {
-			1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
-            1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
-			-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-			-1.0f,  1.0f, 0.0f, 0.0f, 1.0f
+			-0.8f,  0.8f, 0.0f, 0.0f, 1.0f,
+            0.8f,  0.8f, 0.0f, 1.0f, 1.0f,
+			-0.8f, -0.8f, 0.0f, 0.0f, 0.0f,
+			 0.8f, -0.8f, 0.0f, 1.0f, 0.0f
 		};
 		unsigned int indices[] = {
-			0, 1, 3,
-			1, 2, 3
+			0, 1, 2,
+			1, 3, 2
 		};
 		
-		glGenVertexArrays(1, &VAO);
 		glGenBuffers(1, &VBO);
-		glGenBuffers(1, &EBO);
-		
-		glBindVertexArray(VAO);
-		
 		glBindBuffer(GL_ARRAY_BUFFER, VBO);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 		
+		glGenBuffers(1, &EBO);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 		
-		GLint posAttrib = glGetAttribLocation(shaderProgram, "vs_Pos");
-		GLint texCoordAttrib = glGetAttribLocation(shaderProgram, "vs_TexCoord");
-		
-		glVertexAttribPointer(posAttrib, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-		glEnableVertexAttribArray(posAttrib);
-		glVertexAttribPointer(texCoordAttrib, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-		glEnableVertexAttribArray(texCoordAttrib);
+		checkGLError("setupGeometry");
 	}
 	
 	void step() override {
-		box.size = math::Vec(195, 160);
 		dirty = true;
 		OpenGlWidget::step();
 	}
@@ -170,48 +199,44 @@ struct GLCanvasWidget : rack::widget::OpenGlWidget {
 	void drawFramebuffer() override {
 		if (!shaderProgram) {
 			createShaderProgram();
-			setupGeometry();
+			if (shaderProgram) {
+				setupGeometry();
+			} else {
+				return;
+			}
 		}
 		
 		math::Vec fbSize = getFramebufferSize();
 		glViewport(0.0, 0.0, fbSize.x, fbSize.y);
-		glClearColor(0.0, 0.0, 0.0, 1.0);
+		glClearColor(0.2, 0.2, 0.2, 1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 		
 		glUseProgram(shaderProgram);
+		checkGLError("glUseProgram");
 		
-		float currentTime = rack::system::getTime() - startTime;
-		glUniform1f(glGetUniformLocation(shaderProgram, "u_Time"), currentTime);
-		glUniform2f(glGetUniformLocation(shaderProgram, "u_Resolution"), fbSize.x, fbSize.y);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
 		
-		if (module) {
-			glUniform1fv(glGetUniformLocation(shaderProgram, "u_AudioData"), 512, module->audioBuffer);
+		if (posAttrib >= 0) {
+			glEnableVertexAttribArray(posAttrib);
+			glVertexAttribPointer(posAttrib, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 		}
 		
-		float projection[16] = {
-			2.0f/fbSize.x, 0.0f, 0.0f, 0.0f,
-			0.0f, 2.0f/fbSize.y, 0.0f, 0.0f,
-			0.0f, 0.0f, -1.0f, 0.0f,
-			-1.0f, -1.0f, 0.0f, 1.0f
-		};
+		if (texCoordAttrib >= 0) {
+			glEnableVertexAttribArray(texCoordAttrib);
+			glVertexAttribPointer(texCoordAttrib, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+		}
 		
-		float model[16] = {
-			fbSize.x/2, 0.0f, 0.0f, 0.0f,
-			0.0f, fbSize.y/2, 0.0f, 0.0f,
-			0.0f, 0.0f, 1.0f, 0.0f,
-			fbSize.x/2, fbSize.y/2, 0.0f, 1.0f
-		};
-		
-		glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "u_Proj"), 1, GL_FALSE, projection);
-		glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "u_Model"), 1, GL_FALSE, model);
-		
-		glBindVertexArray(VAO);
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+		
+		if (posAttrib >= 0) glDisableVertexAttribArray(posAttrib);
+		if (texCoordAttrib >= 0) glDisableVertexAttribArray(texCoordAttrib);
+		
+		checkGLError("draw");
 	}
 	
 	~GLCanvasWidget() {
 		if (shaderProgram) glDeleteProgram(shaderProgram);
-		if (VAO) glDeleteVertexArrays(1, &VAO);
 		if (VBO) glDeleteBuffers(1, &VBO);
 		if (EBO) glDeleteBuffers(1, &EBO);
 	}
@@ -221,8 +246,7 @@ struct DrawWidget : ModuleWidget {
 	DrawWidget(Draw* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/draw.svg")));
-
-		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
+        addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
@@ -243,10 +267,8 @@ struct DrawWidget : ModuleWidget {
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(20.833, 113.115)), module, Draw::OUT_1_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(45.212, 113.115)), module, Draw::OUT_2_OUTPUT));
 
-		// mm2px(Vec(66.04, 55.88))
-
 		GLCanvasWidget* canvas = createWidget<GLCanvasWidget>(mm2px(Vec(0.0, 13.039)));
-		canvas->module = module;
+		canvas->setModule(module);
 		addChild(canvas);
 	}
 };
