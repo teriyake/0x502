@@ -60,5 +60,6 @@ void main() {
     
     finalColor *= 1.0 + energy * 0.2;
     
-    gl_FragColor = vec4(finalColor, 0.15);
+    //gl_FragColor = vec4(finalColor, 0.15);
+    gl_FragColor = vec4(vec3(u_AudioData[int(uv.x * 511.0)]), 1.0);
 } 
