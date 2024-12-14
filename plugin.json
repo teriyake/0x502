@@ -14,10 +14,9 @@
   "changelogUrl": "",
   "modules": [
     {
-      "slug": "draw",
-      "name": "draw",
-      "description": "glsl shader visualization",
-      "manualUrl": "",
+      "slug": "canvas",
+      "name": "canvas",
+      "description": "",
       "tags": ["Visual"]
     }
   ]

@@ -42,15 +42,23 @@ GLuint compileShader(const std::string& source, GLenum type) {
     return shader;
 }
 
-struct Draw : Module {
+
+struct Canvas : Module {
 	enum ParamId {
+        PARAM_TIME_1,
+        PARAM_TIME_2,
 		PARAMS_LEN
 	};
 	enum InputId {
-		IN_1_INPUT,
+        INPUT_1,
+        INPUT_TRIG_1,
+        INPUT_2,
+        INPUT_TRIG_2,
 		INPUTS_LEN
 	};
 	enum OutputId {
+		OUTPUT_1,
+		OUTPUT_2,
 		OUTPUTS_LEN
 	};
 	enum LightId {
@@ -60,15 +68,22 @@ struct Draw : Module {
 	float audioBuffer[512] = {0.f};
 	float smoothingFactor = 0.3f;
 
-	Draw() {
+	Canvas() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
-		configInput(IN_1_INPUT, "Audio");
+        configInput(INPUT_1, "audio input 1");
+        configInput(INPUT_TRIG_1, "trigger input 1");
+        configInput(INPUT_2, "audio input 2");
+        configInput(INPUT_TRIG_2, "trigger input 2");
+        configParam(PARAM_TIME_1, -10.0, 10.0, 0.0, "time warp 1 factor", "");
+        configParam(PARAM_TIME_2, -10.0, 10.0, 0.0, "time warp 2 factor", "");
+        configInput(OUTPUT_1, "audio output 1");
+        configInput(OUTPUT_2, "audio output 2");
 	}
 
-	void process(const ProcessArgs& args) override {
+    void process(const ProcessArgs& args) override {
 		float in = 0.f;
-		if (inputs[IN_1_INPUT].isConnected()) {
-			in = inputs[IN_1_INPUT].getVoltage() / 5.f; // normalize to roughly [-1, 1]
+		if (inputs[INPUT_1].isConnected()) {
+			in = inputs[INPUT_1].getVoltage() / 5.f; // normalize to roughly [-1, 1]
 		}
 
 		// shift buffer and apply smoothing
@@ -93,14 +108,14 @@ struct GLCanvasWidget : rack::widget::OpenGlWidget {
 	GLint projUniform = -1;
 	GLint modelUniform = -1;
 	
-	Draw* module = nullptr;
+	Canvas* module = nullptr;
 	
 	GLCanvasWidget() {
-		box.size = math::Vec(195, 160);
+		box.size = math::Vec(487.5, 400.0);
 		startTime = rack::system::getTime();
 	}
 	
-	void setModule(Draw* mod) {
+	void setModule(Canvas* mod) {
 		module = mod;
 	}
 	
@@ -262,21 +277,31 @@ struct GLCanvasWidget : rack::widget::OpenGlWidget {
 	}
 };
 
-struct DrawWidget : ModuleWidget {
-	DrawWidget(Draw* module) {
+struct CanvasWidget : ModuleWidget {
+	CanvasWidget(Canvas* module) {
 		setModule(module);
-		setPanel(createPanel(asset::plugin(pluginInstance, "res/draw.svg")));
-        addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
+		setPanel(createPanel(asset::plugin(pluginInstance, "res/canvas.svg")));
+
+		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(8.643, 113.115)), module, Draw::IN_1_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.427, 14.552)), module, Canvas::INPUT_1));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(193.773, 14.552)), module, Canvas::INPUT_2));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.427, 30.916)), module, Canvas::INPUT_TRIG_1));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(193.773, 30.916)), module, Canvas::INPUT_TRIG_2));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(9.427, 81.756)), module, Canvas::PARAM_TIME_1));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(193.773, 81.756)), module, Canvas::PARAM_TIME_2));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(9.427, 115.864)), module, Canvas::OUTPUT_1));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(193.773, 115.864)), module, Canvas::OUTPUT_2));
 
-		GLCanvasWidget* canvas = createWidget<GLCanvasWidget>(mm2px(Vec(0.0, 13.039)));
-		canvas->setModule(module);
-		addChild(canvas);
+		// mm2px(Vec(165.49, 128.5))
+		GLCanvasWidget* glCanvas = createWidget<GLCanvasWidget>(mm2px(Vec(18.855, 0.025)));
+		glCanvas->setModule(module);
+		addChild(glCanvas);
 	}
 };
 
-Model* modelDraw = createModel<Draw, DrawWidget>("draw");
+
+Model* modelCanvas = createModel<Canvas, CanvasWidget>("canvas");
