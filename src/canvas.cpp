@@ -65,8 +65,15 @@ struct Canvas : Module {
 		LIGHTS_LEN
 	};
 
-	float audioBuffer[512] = {0.f};
+    int ch1 = 0;
+    int ch2 = 0;
+	float audioBuffer1[256] = {0.f};
+	float audioBuffer2[256] = {0.f};
 	float smoothingFactor = 0.3f;
+    float timeWarp1 = 0.0f;
+    float timeWarp2 = 0.0f;
+    float trig1 = 0.0f;
+    float trig2 = 0.0f;
 
 	Canvas() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -76,21 +83,51 @@ struct Canvas : Module {
         configInput(INPUT_TRIG_2, "trigger input 2");
         configParam(PARAM_TIME_1, -10.0, 10.0, 0.0, "time warp 1 factor", "");
         configParam(PARAM_TIME_2, -10.0, 10.0, 0.0, "time warp 2 factor", "");
-        configInput(OUTPUT_1, "audio output 1");
-        configInput(OUTPUT_2, "audio output 2");
+        configOutput(OUTPUT_1, "audio output 1");
+        configOutput(OUTPUT_2, "audio output 2");
 	}
 
     void process(const ProcessArgs& args) override {
-		float in = 0.f;
+		float in1 = 0.f;
+		float in2 = 0.f;
+
+        int channels1 = inputs[INPUT_1].getChannels();
+		if (channels1 != this->ch1) {
+			this->ch1 = channels1;
+		}
+		int channels2 = inputs[INPUT_2].getChannels();
+		if (channels2 != this->ch2) {
+			this->ch2 = channels2;
+		}
+
+        if (inputs[INPUT_TRIG_1].isConnected()) {
+            trig1 = inputs[INPUT_TRIG_1].getVoltage() > 1.0f ? 1.0f : 0.0f;
+        }
+        if (inputs[INPUT_TRIG_2].isConnected()) {
+            trig2 = inputs[INPUT_TRIG_2].getVoltage() > 1.0f ? 1.0f : 0.0f;
+        }
+
+        timeWarp1 = params[PARAM_TIME_1].getValue();
+        timeWarp2 = params[PARAM_TIME_2].getValue();
+
 		if (inputs[INPUT_1].isConnected()) {
-			in = inputs[INPUT_1].getVoltage() / 5.f; // normalize to roughly [-1, 1]
+			in1 = inputs[INPUT_1].getVoltage() / 5.f; // normalize to roughly [-1, 1] for shaders
+            outputs[OUTPUT_1].setChannels(channels1);
+            outputs[OUTPUT_1].writeVoltages(inputs[INPUT_1].getVoltages());
+		}
+		if (inputs[INPUT_2].isConnected()) {
+			in2 = inputs[INPUT_2].getVoltage() / 5.f; // normalize to roughly [-1, 1] for shaders
+            outputs[OUTPUT_2].setChannels(channels2);
+            outputs[OUTPUT_2].writeVoltages(inputs[INPUT_2].getVoltages());
 		}
 
 		// shift buffer and apply smoothing
-		for (int i = 511; i > 0; i--) {
-			audioBuffer[i] = audioBuffer[i-1] * (1.f - smoothingFactor) + audioBuffer[i] * smoothingFactor;
+		for (int i = 255; i > 0; i--) {
+			audioBuffer1[i] = audioBuffer1[i-1] * (1.f - smoothingFactor) + audioBuffer1[i] * smoothingFactor;
+			audioBuffer2[i] = audioBuffer2[i-1] * (1.f - smoothingFactor) + audioBuffer2[i] * smoothingFactor;
 		}
-		audioBuffer[0] = in;
+		audioBuffer1[0] = in1;
+		audioBuffer2[0] = in2;
 	}
 };
 
@@ -104,9 +141,14 @@ struct GLCanvasWidget : rack::widget::OpenGlWidget {
 	GLint texCoordAttrib = -1;
 	GLint timeUniform = -1;
 	GLint resolutionUniform = -1;
-	GLint audioDataUniform = -1;
+	GLint audioData1Uniform = -1;
+	GLint audioData2Uniform = -1;
 	GLint projUniform = -1;
 	GLint modelUniform = -1;
+	GLint trigger1Uniform = -1;
+	GLint trigger2Uniform = -1;
+	GLint timeWarp1Uniform = -1;
+	GLint timeWarp2Uniform = -1;
 	
 	Canvas* module = nullptr;
 	
@@ -165,12 +207,17 @@ struct GLCanvasWidget : rack::widget::OpenGlWidget {
 		texCoordAttrib = glGetAttribLocation(shaderProgram, "vs_TexCoord");
 		timeUniform = glGetUniformLocation(shaderProgram, "u_Time");
 		resolutionUniform = glGetUniformLocation(shaderProgram, "u_Resolution");
-		audioDataUniform = glGetUniformLocation(shaderProgram, "u_AudioData");
+		audioData1Uniform = glGetUniformLocation(shaderProgram, "u_AudioData1");
+		audioData2Uniform = glGetUniformLocation(shaderProgram, "u_AudioData2");
 		projUniform = glGetUniformLocation(shaderProgram, "u_Proj");
 		modelUniform = glGetUniformLocation(shaderProgram, "u_Model");
+		trigger1Uniform = glGetUniformLocation(shaderProgram, "u_Trigger1");
+		trigger2Uniform = glGetUniformLocation(shaderProgram, "u_Trigger2");
+		timeWarp1Uniform = glGetUniformLocation(shaderProgram, "u_TimeWarp1");
+		timeWarp2Uniform = glGetUniformLocation(shaderProgram, "u_TimeWarp2");
 		
-		INFO("Shader locations - Pos: %d, TexCoord: %d, Time: %d, Res: %d, Audio: %d, Proj: %d, Model: %d",
-			 posAttrib, texCoordAttrib, timeUniform, resolutionUniform, audioDataUniform, projUniform, modelUniform);
+		INFO("Shader locations - Pos: %d, TexCoord: %d, Time: %d, Res: %d, Audio 1: %d, Audio 2: %d, Proj: %d, Model: %d, Trigger 1: %d, Trigger 2: %d, Time Warp 1: %d, Time Warp 2: %d",
+			 posAttrib, texCoordAttrib, timeUniform, resolutionUniform, audioData1Uniform, audioData2Uniform, projUniform, modelUniform, trigger1Uniform, trigger2Uniform, timeWarp1Uniform, timeWarp2Uniform);
 		
 		checkGLError("createShaderProgram");
 	}
@@ -238,8 +285,18 @@ struct GLCanvasWidget : rack::widget::OpenGlWidget {
 		if (timeUniform >= 0) glUniform1f(timeUniform, currentTime);
 		if (resolutionUniform >= 0) glUniform2f(resolutionUniform, fbSize.x, fbSize.y);
 		
-		if (module && audioDataUniform >= 0) {
-			glUniform1fv(audioDataUniform, 512, module->audioBuffer);
+		if (module && audioData1Uniform >= 0) {
+			glUniform1fv(audioData1Uniform, 256, module->audioBuffer1);
+		}
+		if (module && audioData2Uniform >= 0) {
+			glUniform1fv(audioData2Uniform, 256, module->audioBuffer2);
+		}
+		
+		if (module) {
+			if (trigger1Uniform >= 0) glUniform1f(trigger1Uniform, module->trig1);
+			if (trigger2Uniform >= 0) glUniform1f(trigger2Uniform, module->trig2);
+			if (timeWarp1Uniform >= 0) glUniform1f(timeWarp1Uniform, module->timeWarp1);
+			if (timeWarp2Uniform >= 0) glUniform1f(timeWarp2Uniform, module->timeWarp2);
 		}
 		
 		float aspect = fbSize.x / fbSize.y;
