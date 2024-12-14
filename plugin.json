@@ -16,8 +16,19 @@
     {
       "slug": "canvas",
       "name": "canvas",
-      "description": "",
-      "tags": ["Visual"]
+      "description": "an OpenGL canvas for audio visualization with custom shaders",
+      "tags": [
+        "Visual"
+      ]
+    },
+    {
+      "slug": "glcv",
+      "name": "glcv",
+      "description": "generates cv, envelopes, & more with glsl shaders",
+      "tags": [
+        "Function generator",
+        "Noise"
+      ]
     }
   ]
 }

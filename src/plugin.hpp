@@ -9,5 +9,5 @@ extern Plugin* pluginInstance;
 // Declare each Model, defined in each module source file
 // extern Model* modelMyModule;
 
-//extern Model* modelDraw;
 extern Model* modelCanvas;
+extern Model* modelGlcv;
