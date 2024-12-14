@@ -11,3 +11,5 @@ extern Plugin* pluginInstance;
 
 extern Model* modelCanvas;
 extern Model* modelGlcv;
+extern Model* modelGlab;
+extern Model* modelGlib;

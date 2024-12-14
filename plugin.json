@@ -29,6 +29,20 @@
         "Function generator",
         "Noise"
       ]
+    },
+    {
+      "slug": "glab",
+      "name": "glab",
+      "description": "a glsl shader lab for experimental remixing of shaders and live-coding",
+      "tags": [
+        "Controller"
+      ]
+    },
+    {
+      "slug": "glib",
+      "name": "glib",
+      "description": "a glsl shader library that manages loading shaders from local files and sharing shaders between modules",
+      "tags": []
     }
   ]
 }
