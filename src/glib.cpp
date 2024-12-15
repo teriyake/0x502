@@ -1,34 +1,11 @@
 #include "plugin.hpp"
 #include "gl_utils.hpp"
+#include "shader_manager.hpp"
 #include <string>
 #include <vector>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <osdialog.h>
-
-struct SharedShaders {
-    static SharedShaders& getInstance() {
-        static SharedShaders instance;
-        return instance;
-    }
-    
-    std::string currentVertexShader;
-    std::string currentFragmentShader;
-    bool shadersValid = false;
-    
-private:
-    SharedShaders() {}
-};
-
-struct ShaderPair {
-    std::string name;
-    std::string vertexSource;
-    std::string fragmentSource;
-    bool isValid;
-    std::string errorLog;
-    
-    ShaderPair() : isValid(false) {}
-};
 
 bool hasExtension(const std::string& filename, const std::string& ext) {
     if (filename.length() < ext.length()) return false;
@@ -89,9 +66,22 @@ struct Glib : Module {
         configOutput(OUTPUT_FRAG, "fragment shader");
     }
 
+    void onAdd() override {
+        auto& shaderLib = SharedShaderLibrary::getInstance();
+        int64_t glibId = static_cast<int64_t>(id);
+        shaderLib.registerGlib(glibId);
+        //INFO("Registered Glib module %lld with shader library (actual ID)", (long long)glibId);
+    }
+
     void loadShaderFromPath(const std::string& vertPath) {
         std::string baseName = getStem(vertPath);
         std::string fragPath = vertPath.substr(0, vertPath.length() - 5) + ".frag";
+        
+        /*
+        INFO("Loading shader pair: %s for Glib %d", baseName.c_str(), id);
+        INFO("  Vertex shader: %s", vertPath.c_str());
+        INFO("  Fragment shader: %s", fragPath.c_str());
+        */
         
         if (fileExists(fragPath)) {
             ShaderPair pair;
@@ -99,12 +89,34 @@ struct Glib : Module {
             pair.vertexSource = gl::readShaderFile(vertPath);
             pair.fragmentSource = gl::readShaderFile(fragPath);
             
-            pair.isValid = false;
+            pair.isValid = !pair.vertexSource.empty() && !pair.fragmentSource.empty();
+            if (!pair.isValid) {
+                WARN("Failed to load shader sources for %s", baseName.c_str());
+                if (pair.vertexSource.empty()) WARN("  Vertex shader is empty");
+                if (pair.fragmentSource.empty()) WARN("  Fragment shader is empty");
+                return;
+            }
+            
             shaderLibrary.push_back(pair);
             currentShaderIndex = shaderLibrary.size() - 1;
             needsValidation = true;
             
-            INFO("Loaded shader pair: %s", baseName.c_str());
+            auto& shaderLib = SharedShaderLibrary::getInstance();
+            shaderLib.addShader(id, pair);
+            
+            //INFO("Successfully loaded shader pair: %s", baseName.c_str());
+            //INFO("  Added to Glib %d at index %d", id, (int)shaderLibrary.size() - 1);
+            
+            /*
+            auto ids = shaderLib.getGlibIds();
+            INFO("Current Glibs in library:");
+            for (int glibId : ids) {
+                const auto* shaders = shaderLib.getShadersForGlib(glibId);
+                if (shaders) {
+                    INFO("  Glib %d: %d shaders", glibId, (int)shaders->size());
+                }
+            }
+            */
         } else {
             WARN("Could not find matching fragment shader for %s", baseName.c_str());
         }
@@ -115,10 +127,11 @@ struct Glib : Module {
             pair.isValid = !pair.vertexSource.empty() && !pair.fragmentSource.empty();
             
             if (pair.isValid) {
-                auto& shared = SharedShaders::getInstance();
-                shared.currentVertexShader = pair.vertexSource;
-                shared.currentFragmentShader = pair.fragmentSource;
-                shared.shadersValid = true;
+                //INFO("Validated shader pair: %s", pair.name.c_str());
+            } else {
+                WARN("Invalid shader pair: %s", pair.name.c_str());
+                if (pair.vertexSource.empty()) WARN("  Vertex shader is empty");
+                if (pair.fragmentSource.empty()) WARN("  Fragment shader is empty");
             }
         }
         catch (const std::exception& e) {
@@ -132,13 +145,11 @@ struct Glib : Module {
         if (prevTrigger.process(params[PARAM_PREV].getValue() || inputs[INPUT_PREV].getVoltage() > 1.0f)) {
             if (currentShaderIndex > 0) {
                 currentShaderIndex--;
-                updateSharedShaders();
             }
         }
         if (nextTrigger.process(params[PARAM_NEXT].getValue() || inputs[INPUT_NEXT].getVoltage() > 1.0f)) {
             if (currentShaderIndex < (int)shaderLibrary.size() - 1) {
                 currentShaderIndex++;
-                updateSharedShaders();
             }
         }
 
@@ -166,19 +177,6 @@ struct Glib : Module {
             lights[LIGHT_FRAG_VALID].setBrightness(0.0f);
             outputs[OUTPUT_VERT].setVoltage(0.0f);
             outputs[OUTPUT_FRAG].setVoltage(0.0f);
-        }
-    }
-
-private:
-    void updateSharedShaders() {
-        if (!shaderLibrary.empty()) {
-            ShaderPair& current = shaderLibrary[currentShaderIndex];
-            if (current.isValid) {
-                auto& shared = SharedShaders::getInstance();
-                shared.currentVertexShader = current.vertexSource;
-                shared.currentFragmentShader = current.fragmentSource;
-                shared.shadersValid = true;
-            }
         }
     }
 };
