@@ -350,7 +350,6 @@ void GLCanvasWidget::createShaderProgram() {
 		glDeleteProgram(shaderProgram);
 		shaderProgram = 0;
 		
-		// Clear the framebuffer when changing shaders
 		glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -359,7 +358,6 @@ void GLCanvasWidget::createShaderProgram() {
 	
 	GLuint vertShader = 0, fragShader = 0;
 	try {
-		//INFO("Compiling vertex shader...");
 		vertShader = gl::compileShader(shaderPair->vertexSource, GL_VERTEX_SHADER);
 		if (!vertShader) {
 			WARN("Failed to compile vertex shader");
@@ -367,9 +365,7 @@ void GLCanvasWidget::createShaderProgram() {
 			dirty = false;
 			return;
 		}
-		//INFO("Vertex shader compiled successfully");
 		
-		//INFO("Compiling fragment shader...");
 		fragShader = gl::compileShader(shaderPair->fragmentSource, GL_FRAGMENT_SHADER);
 		if (!fragShader) {
 			WARN("Failed to compile fragment shader");
@@ -377,9 +373,7 @@ void GLCanvasWidget::createShaderProgram() {
 			dirty = false;
 			return;
 		}
-		//INFO("Fragment shader compiled successfully");
 		
-		//INFO("Creating shader program...");
 		shaderProgram = glCreateProgram();
 		if (!shaderProgram) {
 			WARN("Failed to create shader program");
@@ -391,7 +385,6 @@ void GLCanvasWidget::createShaderProgram() {
 		
 		glAttachShader(shaderProgram, vertShader);
 		glAttachShader(shaderProgram, fragShader);
-		//INFO("Linking shader program...");
 		glLinkProgram(shaderProgram);
 		
 		GLint ok;
