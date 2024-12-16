@@ -347,9 +347,14 @@ void GLCanvasWidget::createShaderProgram() {
 	//INFO("Shader pair found and valid. Vertex shader length: %zu, Fragment shader length: %zu", shaderPair->vertexSource.length(), shaderPair->fragmentSource.length());
 	
 	if (shaderProgram) {
-		//INFO("Cleaning up existing shader program");
 		glDeleteProgram(shaderProgram);
 		shaderProgram = 0;
+		
+		// Clear the framebuffer when changing shaders
+		glBindFramebuffer(GL_FRAMEBUFFER, frameBuffer);
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	}
 	
 	GLuint vertShader = 0, fragShader = 0;
@@ -487,18 +492,17 @@ void GLCanvasWidget::drawFramebuffer() {
 		return;
 	}
 
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 	math::Vec fbSize = getFramebufferSize();
 	glViewport(0.0, 0.0, fbSize.x, fbSize.y);
 
 	if (!shaderProgram && dirty) {
-		//INFO("Canvas: Creating shader program in drawFramebuffer");
-		createShaderProgram();
+			createShaderProgram();
 	}
 
 	if (!shaderProgram) {
-		//INFO("Canvas: No shader program available, clearing to black");
-		glClearColor(0.0, 0.0, 0.0, 1.0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		return;
 	}
 
@@ -507,7 +511,7 @@ void GLCanvasWidget::drawFramebuffer() {
 	GLint blend_src, blend_dst;
 	glGetIntegerv(GL_BLEND_SRC_ALPHA, &blend_src);
 	glGetIntegerv(GL_BLEND_DST_ALPHA, &blend_dst);
-	
+
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	
