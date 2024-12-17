@@ -6,7 +6,7 @@
 A collection of VCV Rack modules that use glsl shaders for audio processing
 
 ## Releases
-0x502 is still in active development. [Here is the link to the current Mac ARM64 build](https://drive.google.com/file/d/1L47M0fQWbMhQ1ejF3o2edusSWZzaKCKQ/view?usp=sharing) if you would like to try it out! Once you have downloaded the zip file, please unzip it and put the entire folder in your [rack plugin directory](https://vcvrack.com/manual/FAQ#Where-is-the-Rack-user-folder).
+0x502 is still in active development. [Here is the link to the current Mac ARM64 build](https://drive.google.com/file/d/1w6VC8NFBHGyhxQTp58SPqciRrI9FjcoH/view?usp=sharing) if you would like to try it out! Once you have downloaded the zip file, please unzip it and put the entire folder in your [rack plugin directory](https://vcvrack.com/manual/FAQ#Where-is-the-Rack-user-folder).
 
 ## Building
 If you would like to build it yourself, please first make sure that you have all the necesary dependencies for your platform by following [VCV Rack's guide for setting up your build environment](https://vcvrack.com/manual/Building#Setting-up-your-development-environment).  
