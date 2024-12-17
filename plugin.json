@@ -1,15 +1,15 @@
 {
-  "slug": "glsl-rack",
-  "name": "glsl-rack",
+  "slug": "0x502",
+  "name": "0x502",
   "version": "2.0.0",
-  "license": "proprietary",
-  "brand": "glsl-rack",
-  "author": "",
-  "authorEmail": "",
-  "authorUrl": "",
-  "pluginUrl": "",
-  "manualUrl": "",
-  "sourceUrl": "",
+  "license": "MIT",
+  "brand": "0x502",
+  "author": "Teri Ke",
+  "authorEmail": "terik@seas.upenn.edu",
+  "authorUrl": "https://teri.localplayer.dev",
+  "pluginUrl": "https://github.com/teriyake/0x502",
+  "manualUrl": "https://github.com/teriyake/0x502",
+  "sourceUrl": "https://github.com/teriyake/0x502",
   "donateUrl": "",
   "changelogUrl": "",
   "modules": [
@@ -42,12 +42,12 @@
       "slug": "glib",
       "name": "glib",
       "description": "a glsl shader library that manages loading shaders from local files and sharing shaders between modules",
-      "tags": []
+      "tags": ["Utility"]
     },
     {
       "slug": "glaze",
       "name": "glaze",
-      "description": "",
+      "description": "glaze (glsl shoegaze) is an 8-mode effect module that supports both dsp & shader-based audio processing",
       "tags": [
         "Waveshaper",
         "Digital",
