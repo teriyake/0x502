@@ -129,8 +129,6 @@ void GlabTextField::drawLayer(const DrawArgs& args, int layer) {
 				float cursorX = 3 + nvgTextBounds(args.vg, 0, 0, currentLineText.c_str(), NULL, NULL);
 				float cursorY = cursorLine * lineHeight - scrollPos;
 				
-                NVGcolor highlightColor = color;
-                highlightColor.a = 0.5;
 				if (cursorY + lineHeight >= 0 && cursorY <= box.size.y) {
 					nvgBeginPath(args.vg);
 					nvgMoveTo(args.vg, cursorX, cursorY + 3);
@@ -150,8 +148,8 @@ void GlabTextField::drawLayer(const DrawArgs& args, int layer) {
 				int startLine = 0, endLine = 0;
 				int currentCharCount = 0;
 
-				for (int i = 0; i < wrappedLines.size(); i++) {
-					currentCharCount += wrappedLines[i].length() + 1;
+				currentCharCount += wrappedLines[0].length() + 1;
+				for (size_t i = 0; i < wrappedLines.size(); i++) {
 					if (currentCharCount > start && startLine == 0) {
 						startLine = i;
 					}
@@ -159,18 +157,35 @@ void GlabTextField::drawLayer(const DrawArgs& args, int layer) {
 						endLine = i;
 						break;
 					}
+					currentCharCount += wrappedLines[i].length() + 1;
 				}
+                if (start == 0) {
+                    startLine = 0;
+                }
 
-				float y = -scrollPos;
+                float width = box.size.x - 6;
+                int wrapped = nvgTextBounds(args.vg, 0, 0, wrappedLines[0].c_str(), NULL, NULL) / width;
+                float y = -scrollPos + startLine * lineHeight;
+                float yMin = 0.0;
 				for (int i = startLine; i <= endLine; i++) {
-					float startX = (i == startLine) ? nvgTextBounds(args.vg, 0, 0, text.substr(0, start).c_str(), NULL, NULL) : 0;
-					float width = (i == endLine) ? nvgTextBounds(args.vg, 0, 0, text.substr(start, end - start).c_str(), NULL, NULL) : nvgTextBounds(args.vg, 0, 0, wrappedLines[i].c_str(), NULL, NULL);
+                    float startX = 0.0;
+                    wrapped = nvgTextBounds(args.vg, 0, 0, wrappedLines[i].c_str(), NULL, NULL) / width;
+                    float height = lineHeight * (1 + wrapped);
+                    float yMax = box.size.y - height - 6;
+                    if (y > yMax) {
+                        return;
+                    }
+                    if (y < yMin) {
+                        y += lineHeight * (1 + wrapped);
+                        continue;
+                    }
 
 					nvgBeginPath(args.vg);
-					nvgFillColor(args.vg, nvgRGBA(150, 150, 150, 100));
-					nvgRect(args.vg, startX, y + 3, width, lineHeight);
+					nvgFillColor(args.vg, highlightColor);
+					nvgRect(args.vg, startX, y + 3, width, height);
 					nvgFill(args.vg);
-					y += lineHeight;
+
+					y += lineHeight * (1 + wrapped);
 				}
 			}
 
