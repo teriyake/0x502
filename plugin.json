@@ -17,26 +17,19 @@
       "slug": "canvas",
       "name": "canvas",
       "description": "an OpenGL canvas for audio visualization with custom shaders",
-      "tags": [
-        "Visual"
-      ]
+      "tags": ["Visual"]
     },
     {
       "slug": "glcv",
       "name": "glcv",
       "description": "generates cv, envelopes, & more with glsl shaders",
-      "tags": [
-        "Function generator",
-        "Noise"
-      ]
+      "tags": ["Function generator", "Noise"]
     },
     {
       "slug": "glab",
       "name": "glab",
       "description": "a glsl shader lab for experimental remixing of shaders and live-coding",
-      "tags": [
-        "Controller"
-      ]
+      "tags": ["Controller"]
     },
     {
       "slug": "glib",
@@ -49,9 +42,12 @@
       "name": "glaze",
       "description": "glaze (glsl shoegaze) is an 8-mode effect module that supports both dsp & shader-based audio processing",
       "tags": [
-        "Waveshaper",
-        "Digital",
-        "Effect"
+        "Reverb",
+        "Delay",
+        "Distortion",
+        "Granular",
+        "Effect",
+        "Waveshaper"
       ]
     }
   ]
