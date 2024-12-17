@@ -1,11 +1,13 @@
 # Glaze
 
-GLAZE (glsl shoegaze) is a multi-mode audio effect module that combines various signal processing techniques with shader-based effects.
-![GLAZE screenshot]()
+GLAZE (glsl shoegaze) is a multi-mode audio effect module that combines various signal processing techniques with shader-based effects.  
 
-Each mode uses three inputs (U1, U2, U3) to control different dsp parameters or shader uniforms. GLAZE is a GLIB subscriber and fetches its shaders from GLIB. By default, GLAZE uses dsp when no shaders are loaded. Currently, only RVB (reverb), FZZ (fuzz), and FLD (fold) support shader-based processing, but I'm planning to extend the support to all modes eventually.  
+![GLAZE screenshot](https://github.com/teriyake/0x502/blob/0f2ce9fc133226973bde7aaa712f5a7ee31523bb/docs/screenshots/glaze.png)  
 
-The demo shaders can be found here. The available shader uniforms are: ```
+Each mode uses three inputs (```U1```, ```U2```, ```U3```) to control different dsp parameters or shader uniforms. GLAZE is a GLIB subscriber and fetches its shaders from GLIB. By default, GLAZE uses dsp when no shaders are loaded. Currently, only RVB (reverb), FZZ (fuzz), and FLD (fold) support shader-based processing, but I'm planning to extend the support to all modes eventually.  
+
+The demo shaders can be found here. The available shader uniforms are: 
+```
 uniform float audioInL;
 uniform float audioInR;
 uniform float u1;
