@@ -1,9 +1,6 @@
 #include "plugin.hpp"
-#include "context.hpp"
 #include "logger.hpp"
 #include "shader_manager.hpp"
-#include <widget/FramebufferWidget.hpp>
-#include <widget/OpenGlWidget.hpp>
 #include <string>
 #include <fstream>
 #include <sstream>
